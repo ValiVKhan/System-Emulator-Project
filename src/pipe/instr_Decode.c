@@ -64,20 +64,20 @@ extract_immval(uint32_t insnbits, opcode_t op, int64_t *imm) {
     if (op == OP_STUR || op == OP_LDUR) {
         *imm = bitfield_u32(insnbits, 12, 9);
     }
-    else if (op == OP_MOVK || op == OP_MOVZ) {
-        *imm = bitfield_u32(insnbits, 5, 16);
-    }
     else if (op == OP_ADRP) {
         *imm = (bitfield_u32(insnbits, 5, 19) << 14) | (bitfield_u32(insnbits, 29, 2) << 12);
     }
-    else if (op == OP_LSL || op == OP_UBFM) {
-        *imm = 64 - bitfield_u32(insnbits, 16, 6);
+    else if (op == OP_MOVK || op == OP_MOVZ) {
+        *imm = bitfield_u32(insnbits, 5, 16);
+    }
+    else if (op == OP_ADD_RI || op == OP_SUB_RI || op == OP_ASR) {
+        *imm = bitfield_u32(insnbits, 10, 12);
     }
     else if (op == OP_LSR) {
         *imm = bitfield_u32(insnbits, 16, 6);
     }
-    else if (op == OP_ADD_RI || op == OP_SUB_RI || op == OP_ASR) {
-        *imm = bitfield_u32(insnbits, 10, 12);
+    else if (op == OP_LSL || op == OP_UBFM) {
+        *imm = 64 - bitfield_u32(insnbits, 16, 6);
     }
     else {
         *imm = 0;
@@ -104,21 +104,21 @@ decide_alu_op(opcode_t op, alu_op_t *ALU_op) {
         case OP_B_COND:
             *ALU_op = PLUS_OP;
             break;
+        case OP_ORR_RR:
+            *ALU_op = OR_OP;
+            break;
         case OP_MOVK:
         case OP_MOVZ:
         case OP_MVN:
             *ALU_op = MOV_OP;
             break;
+        case OP_EOR_RR:
+            *ALU_op = EOR_OP;
+            break;
         case OP_SUB_RI:
         case OP_SUBS_RR:
         case OP_CMP_RR:
             *ALU_op = MINUS_OP;
-            break;
-        case OP_ORR_RR:
-            *ALU_op = OR_OP;
-            break;
-        case OP_EOR_RR:
-            *ALU_op = EOR_OP;
             break;
         case OP_ANDS_RR:
         case OP_TST_RR:
@@ -128,11 +128,11 @@ decide_alu_op(opcode_t op, alu_op_t *ALU_op) {
         case OP_UBFM:
             *ALU_op = LSL_OP;
             break;
-        case OP_LSR:
-            *ALU_op = LSR_OP;
-            break;
         case OP_ASR:
             *ALU_op = ASR_OP;
+            break;
+        case OP_LSR:
+            *ALU_op = LSR_OP;
             break;
         default:
             *ALU_op = PLUS_OP;        
@@ -175,31 +175,37 @@ extract_regs(uint32_t insnbits, opcode_t op, uint8_t *src1, uint8_t *src2, uint8
             *src1 = bitfield_u32(insnbits, 5, 5);
             *src2 = 36;
             break;
+        case OP_MOVK:
+        case OP_MOVZ:
+        case OP_ADRP:
+            *src1 = bitfield_u32(insnbits, 0, 5);
+            *src2 = 36;
+            *dst = bitfield_u32(insnbits, 0, 5);
+            break;
         case OP_RET:
             *dst = bitfield_u32(insnbits, 5, 5);
             *src1 = 36;
             *src2 = 36;
-            break;
-        case OP_MOVK:
-        case OP_MOVZ:
-        case OP_ADRP:
-            *src1 = insnbits & 0x1FU;
-            *src2 = 36;
-            *dst = insnbits & 0x1FU;
-            break;
-        case OP_MVN:
-            *dst = insnbits & 0x1FU;
-            *src2 = bitfield_u32(insnbits, 16, 5);
-            *src1 = 36;
             break;
         case OP_SUBS_RR:
         case OP_ADDS_RR:
         case OP_ORR_RR:
         case OP_EOR_RR:
         case OP_ANDS_RR:
-            *dst = insnbits & 0x1FU ;
-            *src2 = (insnbits & 0x1F0000U) >> 16;
-            *src1 = (insnbits & 0x3E0U) >> 5;
+            *dst = bitfield_u32(insnbits, 0, 5);
+            *src2 = bitfield_u32(insnbits, 16, 5);;
+            *src1 = bitfield_u32(insnbits, 5, 5);
+            break;
+        case OP_MVN:
+            *dst = bitfield_u32(insnbits, 0, 5);
+            *src2 = bitfield_u32(insnbits, 16, 5);
+            *src1 = 36;
+            break;
+        case OP_CMP_RR:
+        case OP_TST_RR:
+            *dst = 0x20U;
+            *src2 = bitfield_u32(insnbits, 16, 5);;
+            *src1 = bitfield_u32(insnbits, 5, 5);;
             break;
         case OP_ADD_RI:
         case OP_SUB_RI:
@@ -210,12 +216,6 @@ extract_regs(uint32_t insnbits, opcode_t op, uint8_t *src1, uint8_t *src2, uint8
             *dst = bitfield_u32(insnbits, 0, 5);
             *src2 = bitfield_u32(insnbits, 16, 5);
             *src1 = bitfield_u32(insnbits, 5, 5);
-            break;
-        case OP_CMP_RR:
-        case OP_TST_RR:
-            *dst = 0x20U;
-            *src2 = (insnbits & 0x1F0000U) >> 16;
-            *src1 = (insnbits & 0x3E0U) >> 5;
             break;
     }
     return;
@@ -242,38 +242,35 @@ comb_logic_t decode_instr(d_instr_impl_t *in, x_instr_impl_t *out) {
     out->status = in->status;
     out->op = in->op;
     out->print_op = in->print_op;
-    out->cond = in->insnbits & 0xFU;
-
+    out->cond = bitfield_u32(in->insnbits, 0, 4);
     out->seq_succ_PC = in->seq_succ_PC;
-    
 
     d_ctl_sigs_t * dsigs;
 
     decide_alu_op(in->print_op, &out->ALU_op);
 
     generate_DXMW_control(in->print_op, dsigs, &(out->X_sigs), &(out->M_sigs), &(out->W_sigs));
-    uint8_t *src1;// = malloc(1);
-    uint8_t *src2;//= malloc(1);
-    uint8_t *dst;//= malloc(1);
+    uint8_t *src1 = malloc(1);
+    uint8_t *src2= malloc(1);
+    uint8_t *dst= malloc(1);
 
     extract_regs(in->insnbits, in->print_op, src1, src2, dst);
-
     extract_immval(in->insnbits, in->print_op, &(out->val_imm));
+
     
     if (in->print_op == OP_MOVK || in->print_op == OP_MOVZ) {
         out->val_hw = bitfield_u32(in->insnbits, 21, 2);
     }
     else {
-        out->val_hw = (uint32_t)0x0U;
+        out->val_hw = 0;
     }
-    
-    
     out->dst = *dst;
     if (in->print_op == OP_STUR) {
         regfile(*src1, *dst, W_out->dst, W_wval, W_out->W_sigs.w_enable, &out->val_a, &out->val_b);
     }
     else if (in->print_op == OP_RET) {
         regfile(*dst, *src1, W_out->dst, W_wval, W_out->W_sigs.w_enable, &out->val_a, &out->val_b);
+        
         if (*dst != 30) {
             F_in->status = STAT_INS;
             D_in->status = STAT_INS;
@@ -282,6 +279,5 @@ comb_logic_t decode_instr(d_instr_impl_t *in, x_instr_impl_t *out) {
     else {
         regfile(*src1, *src2, W_out->dst, W_wval, W_out->W_sigs.w_enable, &out->val_a, &out->val_b);
     }
-
     return;
 }

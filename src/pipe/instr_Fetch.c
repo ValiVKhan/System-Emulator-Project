@@ -39,16 +39,22 @@ select_PC(uint64_t pred_PC,                                     // The predicted
      * at the top of this function. 
      * You may modify below it. 
      */
-    if (D_opcode == OP_RET && val_a == RET_FROM_MAIN_ADDR) {
+    if (D_opcode == OP_RET && val_a == RET_FROM_MAIN_ADDR)
+    {
         *current_PC = 0; // PC can't be 0 normally.
         return;
     }
-    // Modify starting here.
-        if (M_opcode == OP_B_COND && !M_cond_val) {
-        *current_PC = seq_succ;
-    } else {
-        *current_PC = pred_PC;
+    if (D_opcode == OP_RET) {
+        *current_PC = val_a;
+        return;
     }
+    // Modify starting here.
+    if (M_opcode == OP_B_COND && !M_cond_val) {
+        *current_PC = seq_succ;
+        return;
+    }
+
+    *current_PC = pred_PC;
     return;
 }
 
@@ -71,21 +77,19 @@ predict_PC(uint64_t current_PC, uint32_t insnbits, opcode_t op,
         return; // We use this to generate a halt instruction.
     }
     // Modify starting here.
-    uint32_t opcode = insnbits & 0x7F;
-    uint64_t imm = (insnbits >> 5) & 0xFFF;
-    if (opcode == OP_B_COND) {
-        *predicted_PC = current_PC + imm;
-        *seq_succ = current_PC + 4;
-    } else if (opcode == OP_B) {
-        *predicted_PC = current_PC + imm;
-        *seq_succ = *predicted_PC + 4;
-    } else if (opcode == OP_BL) {
-        *predicted_PC = current_PC + imm;
-        *seq_succ = *predicted_PC + 4;
-    } else {
-        *predicted_PC = current_PC + 4;
-        *seq_succ = *predicted_PC + 4;
+    if (op == OP_B || op == OP_BL) {
+        int64_t lowBits = bitfield_s64(insnbits, 0, 26);
+        *predicted_PC = current_PC + (lowBits * 4);
     }
+    else if (op == OP_B_COND) {
+        int64_t lowBits = bitfield_s64(insnbits, 5, 19);
+        *predicted_PC = current_PC + (lowBits * 4);
+    }
+    else {
+        *predicted_PC = current_PC + 4;
+    }
+    *seq_succ = current_PC + 4;
+
     return;
 }
 
@@ -96,10 +100,10 @@ predict_PC(uint64_t current_PC, uint32_t insnbits, opcode_t op,
  * to implement UBFM in full).
  */
 
-static
-void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
-    return;
-}
+// static
+// void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
+//     return;
+// }
 
 /*
  * Fetch stage logic.
@@ -118,7 +122,7 @@ void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
 comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     bool imem_err = 0;
     uint64_t current_PC;
-    select_PC(in->pred_PC, X_in->op, X_in->val_a, M_out->op, M_out->cond_holds, M_out->seq_succ_PC, &current_PC);
+    select_PC(in->pred_PC, X_in->print_op, X_in->val_a, M_out->print_op, M_out->cond_holds, M_out->seq_succ_PC, &current_PC);
     /* 
      * Students: This case is for generating HLT instructions
      * to stop the pipeline. Only write your code in the **else** case. 
@@ -130,33 +134,33 @@ comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
         imem_err = false;
     }
     else {
+        
         imem(current_PC, &out->insnbits, &imem_err);
+        if (imem_err){
+            in->status = STAT_INS;
+        }
 
-        // fix_instr_aliases(out->insnbits, &out->print_op);
+        opcode_t cur_code = itable[bitfield_u32(out->insnbits, 21, 11)];
+        out->op = cur_code;
 
-        out->op = itable[bitfield_u32(out->insnbits, 21, 11)];
-        out->this_PC = current_PC;
+        predict_PC(current_PC, out->insnbits, cur_code, &F_PC, &out->seq_succ_PC);
 
-        predict_PC(current_PC, out->insnbits, out->op, &F_PC, &out->seq_succ_PC);
-        out->status = in->status;
-
-        if (out->op == OP_ANDS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1fU) {
+        if (cur_code == OP_ANDS_RR && bitfield_u32(out->insnbits,0,5) == 0x1FU) {
             out->print_op = OP_TST_RR;
         }
-        else if (out->op == OP_SUBS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU) {
+        else if (cur_code == OP_SUBS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU) {
             out->print_op = OP_CMP_RR;
         }
         else {
-            out->print_op = out->op;
+            out->print_op = cur_code;
         }
 
-        if(imem_err || out->op == OP_ERROR){
-            in->status = STAT_INS;
+        if (cur_code == OP_ERROR) {
             out->status = STAT_INS;
+            in->status = STAT_INS;
         }
-
+        out->this_PC = current_PC;
         out->status = in->status;
-
     }
     if (out->op == OP_HLT) {
         in->status = STAT_HLT;

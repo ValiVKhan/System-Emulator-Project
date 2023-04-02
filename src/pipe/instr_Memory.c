@@ -44,27 +44,16 @@ comb_logic_t memory_instr(m_instr_impl_t *in, w_instr_impl_t *out) {
     out->val_b = in->val_b;
     out->val_ex = in->val_ex;
 
-    // dmem(in->val_b, in->val_ex,                                // in, data
-    //     in->M_sigs.dmem_read, in->M_sigs.dmem_write,                                       // in, control
-    //     &out->val_mem, &out->W_sigs.wval_sel);  
     if (in->status != STAT_AOK && in->status != STAT_BUB) {
         return;
     }
-    bool *memError = malloc(1);
-    *memError = 0;
+    bool *memError = calloc(1, 1);
 
-    bool writeBool = in->M_sigs.dmem_write;
-    bool readBool = in->M_sigs.dmem_read;
-
-    if (writeBool || readBool) {
-        dmem(in->val_ex, in->val_b, readBool, writeBool, &out->val_mem, memError);
+    if (in->M_sigs.dmem_write || in->M_sigs.dmem_read) {
+        dmem(in->val_ex, in->val_b, in->M_sigs.dmem_read, in->M_sigs.dmem_write, &out->val_mem, memError);
     }
-
-
     if (*memError) {
         out->status = STAT_ADR;
-        return;
     }
-    
     return;
 }

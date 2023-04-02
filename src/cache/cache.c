@@ -43,13 +43,13 @@ uword_t next_lru;
 
 // log base 2 of a number.
 // Useful for getting certain cache parameters
-static size_t _log(size_t x) {
-  size_t result = 0;
-  while(x>>=1)  {
-    result++;
-  }
-  return result;
-}
+// static size_t _log(size_t x) {
+//   size_t result = 0;
+//   while(x>>=1)  {
+//     result++;
+//   }
+//   return result;
+// }
 
 /*
  * Initialize the cache according to specified arguments
