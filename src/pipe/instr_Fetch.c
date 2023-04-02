@@ -44,7 +44,11 @@ select_PC(uint64_t pred_PC,                                     // The predicted
         return;
     }
     // Modify starting here.
-
+        if (M_opcode == OP_B_COND && !M_cond_val) {
+        *current_PC = seq_succ;
+    } else {
+        *current_PC = pred_PC;
+    }
     return;
 }
 
@@ -67,6 +71,21 @@ predict_PC(uint64_t current_PC, uint32_t insnbits, opcode_t op,
         return; // We use this to generate a halt instruction.
     }
     // Modify starting here.
+    uint32_t opcode = insnbits & 0x7F;
+    uint64_t imm = (insnbits >> 5) & 0xFFF;
+    if (opcode == OP_B_COND) {
+        *predicted_PC = current_PC + imm;
+        *seq_succ = current_PC + 4;
+    } else if (opcode == OP_B) {
+        *predicted_PC = current_PC + imm;
+        *seq_succ = *predicted_PC + 4;
+    } else if (opcode == OP_BL) {
+        *predicted_PC = current_PC + imm;
+        *seq_succ = *predicted_PC + 4;
+    } else {
+        *predicted_PC = current_PC + 4;
+        *seq_succ = *predicted_PC + 4;
+    }
     return;
 }
 
@@ -99,7 +118,7 @@ void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
 comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     bool imem_err = 0;
     uint64_t current_PC;
-    select_PC(, &current_PC);
+    select_PC(in->pred_PC, D_in->op, X_in->val_a, M_out->op, M_out->cond_holds, M_in->seq_succ_PC, &current_PC);
     /* 
      * Students: This case is for generating HLT instructions
      * to stop the pipeline. Only write your code in the **else** case. 
