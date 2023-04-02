@@ -60,6 +60,7 @@ extract_immval(uint32_t insnbits, opcode_t op, int64_t *imm) {
  */
 static comb_logic_t
 decide_alu_op(opcode_t op, alu_op_t *ALU_op) {
+    
     return;
 }
 
@@ -102,5 +103,7 @@ extract_regs(uint32_t insnbits, opcode_t op,
  */
 
 comb_logic_t decode_instr(d_instr_impl_t *in, x_instr_impl_t *out) {
+
+
     return;
 }

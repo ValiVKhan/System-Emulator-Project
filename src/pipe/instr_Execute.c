@@ -37,5 +37,17 @@ extern comb_logic_t copy_w_ctl_sigs(w_ctl_sigs_t *, w_ctl_sigs_t *);
  */
 
 comb_logic_t execute_instr(x_instr_impl_t *in, m_instr_impl_t *out) {
+    
+    copy_m_ctl_sigs(&in->M_sigs, &out->M_sigs);
+    copy_w_ctl_sigs(&in->W_sigs, &out->W_sigs);
+
+    out->val_b = in->val_b;
+    out->dst = in->dst;
+
+
+    alu(in->val_a, in->val_b, in->val_hw,               // in, data
+        in->ALU_op, in->X_sigs.set_CC, in->cond,                               // in, control
+        in->val_imm, &in->X_sigs.valb_sel);
+
     return;
 }

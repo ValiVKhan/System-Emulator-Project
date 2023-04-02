@@ -34,5 +34,14 @@ extern comb_logic_t copy_w_ctl_sigs(w_ctl_sigs_t *, w_ctl_sigs_t *);
  */
 
 comb_logic_t memory_instr(m_instr_impl_t *in, w_instr_impl_t *out) {
+    copy_w_ctl_sigs(&in->W_sigs, &out->W_sigs);
+    out->dst = in->dst;
+    out->val_ex = in->val_ex;
+
+    dmem(in->val_b, in->val_ex,                                // in, data
+        in->M_sigs.dmem_read, in->M_sigs.dmem_write,                                       // in, control
+        &out->val_mem, &out->W_sigs.wval_sel);  
+
+    
     return;
 }

@@ -19,6 +19,8 @@
 extern machine_t guest;
 extern mem_status_t dmem_status;
 
+
+
 extern uint64_t F_PC;
 
 /*
@@ -42,6 +44,7 @@ select_PC(uint64_t pred_PC,                                     // The predicted
         return;
     }
     // Modify starting here.
+
     return;
 }
 
@@ -96,7 +99,7 @@ void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
 comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     bool imem_err = 0;
     uint64_t current_PC;
-    select_PC(/*Fill the rest of these in.*/, &current_PC);
+    select_PC(, &current_PC);
     /* 
      * Students: This case is for generating HLT instructions
      * to stop the pipeline. Only write your code in the **else** case. 
@@ -108,7 +111,20 @@ comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
         imem_err = false;
     }
     else {
-        
+        imem(current_PC, &out->insnbits, &imem_err);
+
+        fix_instr_aliases(out->insnbits, &out->print_op);
+
+        out->op = itable[bitfield_u32(out->insnbits, 21, 11)];
+        out->this_PC = current_PC;
+
+        predict_PC(current_PC, out->insnbits, out->op, &F_PC, &out->seq_succ_PC);
+        out->status = in->status;
+
+        if(imem_err){
+            in->status = STAT_INS;
+            out->status = STAT_INS;
+        }
     }
     if (out->op == OP_HLT) {
         in->status = STAT_HLT;
