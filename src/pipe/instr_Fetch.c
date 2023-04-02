@@ -49,8 +49,10 @@ select_PC(uint64_t pred_PC,                                     // The predicted
         return;
     }
     // Modify starting here.
-    if (M_opcode == OP_B_COND && !M_cond_val) {
+    if (!(M_opcode != OP_B_COND) && M_cond_val == false) {
+        // Set current program counter to the next sequential address
         *current_PC = seq_succ;
+        // Return from the function
         return;
     }
 
@@ -77,18 +79,32 @@ predict_PC(uint64_t current_PC, uint32_t insnbits, opcode_t op,
         return; // We use this to generate a halt instruction.
     }
     // Modify starting here.
-    if (op == OP_B || op == OP_BL) {
-        int64_t lowBits = bitfield_s64(insnbits, 0, 26);
-        *predicted_PC = current_PC + (lowBits * 4);
+    if (op == OP_B) {
+    // Calculate the target address using the low bits of the instruction
+        int64_t minBit = bitfield_s64(insnbits, 0, 26) * 4;
+        // Set the predicted PC to the target address
+        *predicted_PC = current_PC + minBit;
+    }
+    else if (op == OP_BL){
+        // Calculate the target address using the low bits of the instruction
+        int64_t minBit = bitfield_s64(insnbits, 0, 26) * 4;
+        // Set the predicted PC to the target address
+        *predicted_PC = current_PC + minBit;
     }
     else if (op == OP_B_COND) {
-        int64_t lowBits = bitfield_s64(insnbits, 5, 19);
-        *predicted_PC = current_PC + (lowBits * 4);
+        // Calculate the target address using the low bits of the instruction
+        int64_t minBit = bitfield_s64(insnbits, 5, 19) * 4;
+        // Set the predicted PC to the target address
+        *predicted_PC = current_PC + minBit;
     }
     else {
+        // For other opcodes, increment the current program counter by 4
         *predicted_PC = current_PC + 4;
     }
+
+    // Calculate the next sequential address
     *seq_succ = current_PC + 4;
+
 
     return;
 }
@@ -100,10 +116,10 @@ predict_PC(uint64_t current_PC, uint32_t insnbits, opcode_t op,
  * to implement UBFM in full).
  */
 
-// static
-// void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
-//     return;
-// }
+static
+void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
+    return;
+}
 
 /*
  * Fetch stage logic.
@@ -136,32 +152,35 @@ comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     else {
         
         imem(current_PC, &out->insnbits, &imem_err);
-        if (imem_err){
-            in->status = STAT_INS;
-        }
+        // Set instruction status to STAT_INS if there's an error in instruction memory
+        in->status = imem_err ? STAT_INS : in->status;
 
+        // Determine the current opcode using the instruction table
         opcode_t cur_code = itable[bitfield_u32(out->insnbits, 21, 11)];
         out->op = cur_code;
 
+        // Predict the next PC based on the current opcode and instruction bits
         predict_PC(current_PC, out->insnbits, cur_code, &F_PC, &out->seq_succ_PC);
 
-        if (cur_code == OP_ANDS_RR && bitfield_u32(out->insnbits,0,5) == 0x1FU) {
-            out->print_op = OP_TST_RR;
-        }
-        else if (cur_code == OP_SUBS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU) {
-            out->print_op = OP_CMP_RR;
-        }
-        else {
-            out->print_op = cur_code;
-        }
+        // Set the print opcode based on the current opcode and instruction bits
+        out->print_op = (cur_code == OP_ANDS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU)
+                        ? OP_TST_RR
+                        : (cur_code == OP_SUBS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU)
+                        ? OP_CMP_RR
+                        : cur_code;
 
+        // Check if the current opcode is OP_ERROR, indicating an invalid instruction
         if (cur_code == OP_ERROR) {
+            // Set the status of the current instruction to STAT_INS (invalid instruction)
             out->status = STAT_INS;
+            // Set the status of the input instruction to STAT_INS as well
             in->status = STAT_INS;
         }
         out->this_PC = current_PC;
         out->status = in->status;
     }
+    // If the output instruction's operation code is OP_HLT, the CPU is halted and the
+    // status of both the input and output instructions is set to STAT_HLT.
     if (out->op == OP_HLT) {
         in->status = STAT_HLT;
         out->status = STAT_HLT;

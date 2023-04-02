@@ -44,16 +44,23 @@ comb_logic_t memory_instr(m_instr_impl_t *in, w_instr_impl_t *out) {
     out->val_b = in->val_b;
     out->val_ex = in->val_ex;
 
+    // Check if the input status is valid for executing the memory stage
     if (in->status != STAT_AOK && in->status != STAT_BUB) {
         return;
     }
-    bool *memError = calloc(1, 1);
 
+    // Allocate memory for a flag that tracks any memory access errors
+    bool *memError = calloc(1, sizeof(bool));
+
+    // Execute memory access if the memory signals indicate a read or write operation
     if (in->M_sigs.dmem_write || in->M_sigs.dmem_read) {
         dmem(in->val_ex, in->val_b, in->M_sigs.dmem_read, in->M_sigs.dmem_write, &out->val_mem, memError);
     }
+
+    // Set the output status to ADR if a memory error occurred during memory access
     if (*memError) {
         out->status = STAT_ADR;
     }
+
     return;
 }

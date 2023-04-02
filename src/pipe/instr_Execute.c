@@ -45,16 +45,20 @@ comb_logic_t execute_instr(x_instr_impl_t *in, m_instr_impl_t *out) {
     copy_m_ctl_sigs(&out->M_sigs, &in->M_sigs);
     copy_w_ctl_sigs(&out->W_sigs, &in->W_sigs);
 
-    bool valb = in->X_sigs.valb_sel;
-    if (in->print_op == OP_MOVZ) {
+    
+    switch (in->print_op) {
+    case OP_MOVZ:
         in->val_a = 0;
-    }
-    if (in->print_op == OP_MVN) {
-        in->val_b = ~in->val_b; in->val_a = 0;
-    }
-    if (in->print_op == OP_ADRP) {
+        break;
+    case OP_MVN:
+        in->val_b = ~in->val_b;
+        in->val_a = 0;
+        break;
+    case OP_ADRP:
         in->val_imm += 0x400000U;
+        break;
     }
+    bool bigBool = in->X_sigs.valb_sel;
     if (in->X_sigs.valb_sel) {
         alu(in->val_a, in->val_b, in->val_hw*16, in->ALU_op, in->X_sigs.set_CC, in->cond, &(out->val_ex), &X_condval);
     }
@@ -62,12 +66,12 @@ comb_logic_t execute_instr(x_instr_impl_t *in, m_instr_impl_t *out) {
         alu(in->val_a, in->val_imm, in->val_hw*16, in->ALU_op, in->X_sigs.set_CC, in->cond, &(out->val_ex), &X_condval);
     }
 
-    out->val_b = in->val_b;
-    out->dst = in->dst;
-    out->op = in->op;
     out->print_op = in->print_op;
     out->seq_succ_PC = in->seq_succ_PC;
     out->cond_holds = X_condval;
+    out->val_b = in->val_b;
+    out->dst = in->dst;
+    out->op = in->op;
 
     return;
 }
