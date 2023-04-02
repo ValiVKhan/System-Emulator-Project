@@ -118,7 +118,7 @@ void fix_instr_aliases(uint32_t insnbits, opcode_t *op) {
 comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     bool imem_err = 0;
     uint64_t current_PC;
-    select_PC(in->pred_PC, D_in->op, X_in->val_a, M_out->op, M_out->cond_holds, M_in->seq_succ_PC, &current_PC);
+    select_PC(in->pred_PC, X_in->op, X_in->val_a, M_out->op, M_out->cond_holds, M_out->seq_succ_PC, &current_PC);
     /* 
      * Students: This case is for generating HLT instructions
      * to stop the pipeline. Only write your code in the **else** case. 
@@ -132,7 +132,7 @@ comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
     else {
         imem(current_PC, &out->insnbits, &imem_err);
 
-        fix_instr_aliases(out->insnbits, &out->print_op);
+        // fix_instr_aliases(out->insnbits, &out->print_op);
 
         out->op = itable[bitfield_u32(out->insnbits, 21, 11)];
         out->this_PC = current_PC;
@@ -140,10 +140,23 @@ comb_logic_t fetch_instr(f_instr_impl_t *in, d_instr_impl_t *out) {
         predict_PC(current_PC, out->insnbits, out->op, &F_PC, &out->seq_succ_PC);
         out->status = in->status;
 
-        if(imem_err){
+        if (out->op == OP_ANDS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1fU) {
+            out->print_op = OP_TST_RR;
+        }
+        else if (out->op == OP_SUBS_RR && bitfield_u32(out->insnbits, 0, 5) == 0x1FU) {
+            out->print_op = OP_CMP_RR;
+        }
+        else {
+            out->print_op = out->op;
+        }
+
+        if(imem_err || out->op == OP_ERROR){
             in->status = STAT_INS;
             out->status = STAT_INS;
         }
+
+        out->status = in->status;
+
     }
     if (out->op == OP_HLT) {
         in->status = STAT_HLT;
