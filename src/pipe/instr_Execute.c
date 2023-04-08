@@ -57,6 +57,10 @@ comb_logic_t execute_instr(x_instr_impl_t *in, m_instr_impl_t *out) {
     case OP_ADRP:
         in->val_imm += 0x400000U;
         break;
+    case OP_BL:
+        in->val_a = in->seq_succ_PC; 
+        in->dst = 30;
+        break;
     }
     bool bigBool = in->X_sigs.valb_sel;
     if (in->X_sigs.valb_sel) {

@@ -48,26 +48,32 @@ void pipe_control_stage(proc_stage_t stage, bool bubble, bool stall) {
 }
 
 bool check_ret_hazard(opcode_t D_opcode) {
-    return false;
+    return D_opcode == OP_RET;
 }
 
 bool check_mispred_branch_hazard(opcode_t X_opcode, bool X_condval) {
-    return false;
+    return X_opcode == OP_B_COND && !X_condval;
 }
 
 bool check_load_use_hazard(opcode_t D_opcode, uint8_t D_src1, uint8_t D_src2,
                            opcode_t X_opcode, uint8_t X_dst) {
-    return false;
+    return X_opcode == OP_LDUR && ((X_dst == D_src1) || (X_dst == D_src2));
 }
 
 comb_logic_t handle_hazards(opcode_t D_opcode, uint8_t D_src1, uint8_t D_src2, 
                             opcode_t X_opcode, uint8_t X_dst, bool X_condval) {
     /* Students: Change this code */
     // pipe_control_stage(S_FETCH, false, false);
-    bool f_stall = F_out->status == STAT_HLT || F_out->status == STAT_INS;
-    pipe_control_stage(S_FETCH, false, f_stall);    
-    pipe_control_stage(S_DECODE, false, false);
-    pipe_control_stage(S_EXECUTE, false, false);
+
+    
+    bool branchMerr = check_mispred_branch_hazard(X_opcode, X_condval);
+    check_ret_hazard(D_opcode);
+    bool loadUseFlag = check_load_use_hazard(D_opcode, D_src1, D_src2, X_opcode, X_dst);
+    bool timeOut= F_out->status == STAT_HLT || F_out->status == STAT_INS || loadUseFlag;
+    
+    pipe_control_stage(S_FETCH, false, timeOut);    
+    pipe_control_stage(S_DECODE, branchMerr, loadUseFlag);
+    pipe_control_stage(S_EXECUTE, loadUseFlag || branchMerr, false);
     pipe_control_stage(S_MEMORY, false, false);
     pipe_control_stage(S_WBACK, false, false);
 }
