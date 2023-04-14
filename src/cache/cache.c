@@ -43,13 +43,13 @@ uword_t next_lru;
 
 // log base 2 of a number.
 // Useful for getting certain cache parameters
-// static size_t _log(size_t x) {
-//   size_t result = 0;
-//   while(x>>=1)  {
-//     result++;
-//   }
-//   return result;
-// }
+static size_t _log(size_t x) {
+  size_t result = 0;
+  while(x>>=1)  {
+    result++;
+  }
+  return result;
+}
 
 /*
  * Initialize the cache according to specified arguments
@@ -105,7 +105,7 @@ void display_set(cache_t *cache, unsigned int set_index) {
     if (set_index < S) {
         cache_set_t *set = &cache->sets[set_index];
         for (unsigned int i = 0; i < cache->A; i++) {
-            printf ("Valid: %d Tag: %llx Lru: %lld Dirty: %d\n", set->lines[i].valid, 
+        printf ("Valid: %d Tag: %llx Lru: %lld Dirty: %d\n", set->lines[i].valid, 
                 set->lines[i].tag, set->lines[i].lru, set->lines[i].dirty);
         }
     } else {
@@ -128,6 +128,11 @@ void free_cache(cache_t *cache) {
     free(cache);
 }
 
+unsigned long long big_bit(unsigned long long modder, unsigned shifter, unsigned size) {
+    
+    unsigned long long res = (unsigned long long) ((modder >> shifter) & ((1 << size) - 1));
+    return res;
+}
 /* STUDENT TO-DO:
  * Get the line for address contained in the cache
  * On hit, return the cache line holding the address
@@ -135,7 +140,30 @@ void free_cache(cache_t *cache) {
  */
 cache_line_t *get_line(cache_t *cache, uword_t addr) {
     /* your implementation */
+    int my_A = cache->A;
+    int my_B = _log(cache->B);
+    int my_C = cache->C;
+    next_lru++;
+
+    int loggy = _log(my_C/(my_A*cache->B));
+
+    unsigned long token = big_bit(addr, my_B, loggy);
+    uword_t map = addr >> (my_B+loggy);
+
+    display_set(cache, token);
+    cache_set_t tower = cache->sets[token];
+    cache_line_t *spot = tower.lines;
+    
+    for (int j = 0; j < my_A; j++) {
+        cache_line_t block = spot[j];
+        if (block.tag == map && block.valid == 1) {
+            return (spot+j);
+        }
+    }
+    
     return NULL;
+
+   
 }
 
 /* STUDENT TO-DO:
@@ -143,8 +171,37 @@ cache_line_t *get_line(cache_t *cache, uword_t addr) {
  * Return the cache line selected to filled in by addr
  */
 cache_line_t *select_line(cache_t *cache, uword_t addr) {
-    /* your implementation */
-    return NULL;
+    
+    next_lru++;
+
+    int sec = _log(cache->B);
+    unsigned long too = big_bit(addr, sec, _log((cache->C)/((cache->A)*cache->B)));
+
+    cache_set_t compl= *(cache->sets + (too));
+    display_set(cache, too);
+
+    cache_line_t * give = compl.lines;
+
+    uword_t lowru = give->lru;
+
+    cache_line_t * low = give;
+
+    for (int i = 0 ; i < cache->A; i++) {
+        cache_line_t cur = give[i];
+
+        if (!cur.valid) {
+            int val = i;
+            return (give+val);
+        }
+
+        else if (cur.lru < lowru) {
+            lowru = cur.lru;
+            low = (give+i);
+        }
+    }
+    next_lru++;
+
+    return low;
 }
 
 /*  STUDENT TO-DO:
@@ -152,7 +209,37 @@ cache_line_t *select_line(cache_t *cache, uword_t addr) {
  *  Return true if pos hits in the cache.
  */
 bool check_hit(cache_t *cache, uword_t addr, operation_t operation) {
-    /* your implementation */
+
+
+    next_lru++;
+    
+
+    if (get_line(cache, addr) == NULL) {
+
+        cache_line_t * out = select_line(cache, addr);
+
+        if (out->valid) {
+            if (!(out->dirty)) {
+                clean_eviction_count++;
+            }
+            else {
+                dirty_eviction_count++; 
+            }
+        }
+        miss_count++;
+    }
+    else {
+        cache_line_t * prod = get_line(cache, addr);
+
+        hit_count++;
+        prod->lru = next_lru;
+        if (operation != READ) {
+            get_line(cache, addr)->dirty = true;
+            return true;
+        }
+        return true;
+    }
+    
     return false;
 }
 
@@ -161,10 +248,37 @@ bool check_hit(cache_t *cache, uword_t addr, operation_t operation) {
  *  Fill out the evicted_line_t struct with info regarding the evicted line.
  */
 evicted_line_t *handle_miss(cache_t *cache, uword_t addr, operation_t operation, byte_t *incoming_data) {
-    evicted_line_t *evicted_line = malloc(sizeof(evicted_line_t));
-    evicted_line->data = (byte_t *) calloc(cache->B, sizeof(byte_t));
-    /* your implementation */
-    return NULL;
+
+     next_lru++;
+
+    evicted_line_t *taken_out = malloc(sizeof(evicted_line_t));
+    taken_out->data = (byte_t *) calloc(cache->B, sizeof(byte_t));
+
+    
+
+    uword_t plused = addr >> ((_log(cache->B))+(_log((cache->C)/((cache->A)*cache->B))));
+
+
+    cache_line_t * ret = select_line(cache, addr);
+
+    int fir = 1;
+    int zer = 0;
+
+    if (incoming_data != NULL) {
+        memcpy(ret->data, incoming_data, cache->B);
+    }
+    else if (operation == WRITE) {
+        ret->dirty = fir;      
+    }
+    else {
+        ret->dirty = zer;
+    }
+
+    ret->valid = true;
+    (*ret).tag = plused;
+    (*ret).lru = next_lru;
+
+    return taken_out;
 }
 
 /* STUDENT TO-DO:
