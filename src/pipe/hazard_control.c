@@ -70,12 +70,23 @@ comb_logic_t handle_hazards(opcode_t D_opcode, uint8_t D_src1, uint8_t D_src2,
     check_ret_hazard(D_opcode);
     bool loadUseFlag = check_load_use_hazard(D_opcode, D_src1, D_src2, X_opcode, X_dst);
     bool timeOut= F_out->status == STAT_HLT || F_out->status == STAT_INS || loadUseFlag;
-    
-    pipe_control_stage(S_FETCH, false, timeOut);    
+    // his
+    if (dmem_status == IN_FLIGHT) {
+        pipe_control_stage(S_EXECUTE, false, true);
+        pipe_control_stage(S_MEMORY, false, true);
+        pipe_control_stage(S_WBACK, false, false);
+        pipe_control_stage(S_FETCH, false, true);
+        pipe_control_stage(S_DECODE, false, true);
+    }
+    // till here
+    else {
+        pipe_control_stage(S_FETCH, false, timeOut);    
     pipe_control_stage(S_DECODE, branchMerr, loadUseFlag);
     pipe_control_stage(S_EXECUTE, loadUseFlag || branchMerr, false);
     pipe_control_stage(S_MEMORY, false, false);
     pipe_control_stage(S_WBACK, false, false);
+    }
+   
 }
 
 

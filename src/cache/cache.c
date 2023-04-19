@@ -251,16 +251,22 @@ evicted_line_t *handle_miss(cache_t *cache, uword_t addr, operation_t operation,
 
      next_lru++;
 
-    evicted_line_t *taken_out = malloc(sizeof(evicted_line_t));
-    taken_out->data = (byte_t *) calloc(cache->B, sizeof(byte_t));
-
+    evicted_line_t *evicted_line = malloc(sizeof(evicted_line_t));
+    evicted_line->data = (byte_t *) calloc(cache->B, sizeof(byte_t));
     
-
+    // all from other
+    unsigned int OffsetLength = _log(cache -> B);
+    unsigned int IndexLength = _log(cache -> C/ (cache ->B * cache -> A));
+    unsigned int tagBitLength = ADDRESS_LENGTH - (IndexLength + OffsetLength);
+    unsigned int index = ((addr << tagBitLength) >> (OffsetLength + tagBitLength));
     uword_t plused = addr >> ((_log(cache->B))+(_log((cache->C)/((cache->A)*cache->B))));
 
 
     cache_line_t * ret = select_line(cache, addr);
-
+    evicted_line -> dirty = ret -> dirty;
+    evicted_line -> valid = ret -> valid;
+    evicted_line -> addr = (ret -> tag << (OffsetLength + IndexLength) | (index << OffsetLength));
+    // till here
     int fir = 1;
     int zer = 0;
 
@@ -278,7 +284,7 @@ evicted_line_t *handle_miss(cache_t *cache, uword_t addr, operation_t operation,
     (*ret).tag = plused;
     (*ret).lru = next_lru;
 
-    return taken_out;
+    return evicted_line;
 }
 
 /* STUDENT TO-DO:
@@ -287,6 +293,15 @@ evicted_line_t *handle_miss(cache_t *cache, uword_t addr, operation_t operation,
  */
 void get_word_cache(cache_t *cache, uword_t addr, word_t *dest) {
     /* Your implementation */
+    // his
+    unsigned int size_of_block = cache -> B;
+    cache_line_t *ret = get_line(cache, addr);
+    byte_t *res = (byte_t*) dest;
+
+    for (int i = 0; i < 8; i++) {
+        unsigned int break_length = (addr + i) % size_of_block;
+        res[i] = ret -> data[break_length];
+    }
 }
 
 /* STUDENT TO-DO:
@@ -295,6 +310,14 @@ void get_word_cache(cache_t *cache, uword_t addr, word_t *dest) {
  */
 void set_word_cache(cache_t *cache, uword_t addr, word_t val) {
     /* Your implementation */
+    //his
+    unsigned int size_of_block = cache -> B;
+    cache_line_t *ret = get_line(cache, addr);
+    byte_t *val_byte = (byte_t*) &val;
+    for (int i = 0; i < 8; i++) {
+        unsigned int break_length = (addr + i) % size_of_block;
+        ret -> data[break_length] = val_byte[i];
+    }
 }
 
 /*
